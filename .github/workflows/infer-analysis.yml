@@ -1,0 +1,25 @@
+name: Infer Analysis
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download and extract Infer
+        run: |
+          wget https://github.com/facebook/infer/releases/download/v1.2.0/infer-linux-x86_64-v1.2.0.tar.xz
+          tar -xf infer-linux-x86_64-v1.2.0.tar.xz
+
+      - name: Run Infer analysis
+        run: |
+          find . -name "*.c" -exec infer-linux-x86_64-v1.2.0/bin/infer run -- clang {} \; 
