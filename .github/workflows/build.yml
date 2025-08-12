@@ -1,0 +1,47 @@
+name: Build with Clang and GCC
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:3.22
+    strategy:
+      matrix:
+        include:
+          - compiler: clang
+            analysis_flags: "--analyze"
+          - compiler: gcc
+            analysis_flags: "-fanalyzer"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apk update
+          apk add \
+            build-base \
+            make \
+            cmake \
+            ${{ matrix.compiler }}
+
+      - name: Configure with ${{ matrix.compiler }}
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. \
+            -DCMAKE_C_COMPILER=${{ matrix.compiler }} \
+            -DCMAKE_C_FLAGS="-Wall -Wextra ${{ matrix.analysis_flags }}"
+
+      - name: Build with ${{ matrix.compiler }}
+        run: |
+          cd build
+          make V=1
