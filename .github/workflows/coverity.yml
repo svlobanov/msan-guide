@@ -5,15 +5,18 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   coverity:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    - run: cmake -B build -S . 
     - uses: vapier/coverity-scan-action@v1
       with:
+        project: test-msan1/msan-guide
         email: ${{ secrets.COVERITY_SCAN_EMAIL }}
         token: ${{ secrets.COVERITY_SCAN_TOKEN }}
-        command: 'cmake -B build -S . && make -C build'
         build_language: cxx
+        working-directory: build
