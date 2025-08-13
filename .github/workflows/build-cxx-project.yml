@@ -1,0 +1,42 @@
+name: Build CXX Project
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-cxx-project:
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:24.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        apt update
+        apt install -y build-essential cmake make pkg-config
+        apt install -y libssl-dev libcppunit-dev
+
+    - name: Configure and build
+      run: |
+        cd cxx-project
+        mkdir build
+        cd build
+        cmake ..
+        make
+
+    - name: Run tests
+      run: |
+        cd cxx-project/build
+        ctest --output-on-failure
+
+    - name: Run demo
+      run: |
+        cd cxx-project/build
+        ./crypto_demo 

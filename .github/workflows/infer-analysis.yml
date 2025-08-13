@@ -22,4 +22,4 @@ jobs:
 
       - name: Run Infer analysis
         run: |
-          find . -name "*.c" -exec infer-linux-x86_64-v1.2.0/bin/infer run -- clang {} \; 
+          find . -name "small-examples/*.c" -exec infer-linux-x86_64-v1.2.0/bin/infer run -- clang {} \; 

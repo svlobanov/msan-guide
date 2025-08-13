@@ -1,0 +1,86 @@
+name: MSAN Build CXX Project
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  msan-build-cxx-project:
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:24.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install bootstrap dependencies
+      run: |
+        sed -i 's/Types: deb/Types: deb deb-src/g' /etc/apt/sources.list.d/ubuntu.sources
+        apt update
+        apt install -y cmake clang-18 ninja-build dpkg-dev pkg-config git
+        echo 'APT::Sandbox::User "root";' > /etc/apt/apt.conf.d/10sandbox
+        sysctl vm.mmap_rnd_bits
+
+    - name: Rebuild libc++ with MSAN
+      run: |
+        apt source libc++-18-dev
+        cd llvm*/
+        CC=clang-18 CXX=clang++-18 cmake -G Ninja -S runtimes -B build_libcxx \
+           -DCMAKE_BUILD_TYPE=Release \
+           -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi" \
+           -DLLVM_USE_SANITIZER=Memory \
+           -DLIBCXX_CXX_ABI=libcxxabi \
+           -DLIBCXXABI_USE_LLVM_UNWINDER=OFF \
+           -DCMAKE_INSTALL_PREFIX=/opt/msan
+        ninja -C build_libcxx install
+
+    - name: Rebuild openssl with MSAN
+      run: |
+        apt source libssl-dev
+        cd openssl*/
+        CC=clang-18 \
+          CFLAGS="-O2 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=memory" \
+          LDFLAGS="-fsanitize=memory"  \
+          ./Configure no-shared no-asm no-threads no-zlib --prefix=/opt/msan
+        make -j && make install_sw
+
+    - name: Rebuild libcppunit with MSAN
+      run: |
+        apt source libcppunit-dev
+        cd cppunit*/
+        PKG_CONFIG_LIBDIR="/opt/msan/lib/pkgconfig:/opt/msan/lib64/pkgconfig" \
+          CC="clang-18" \
+          CXX="clang++-18" \
+          CFLAGS="-O2 -g -fno-omit-frame-pointer -fsanitize=memory" \
+          CXXFLAGS="-O2  -g -fno-omit-frame-pointer -fsanitize=memory -I/opt/msan/include/c++/v1 -stdlib=libc++" \
+          LDFLAGS="-fsanitize=memory -L/opt/msan/lib -stdlib=libc++" \
+          ./configure --prefix=/opt/msan
+        make -j install
+
+    - name: Configure and build with MSAN
+      run: |
+        cd cxx-project
+        mkdir build
+        cd build
+        PKG_CONFIG_LIBDIR="/opt/msan/lib/pkgconfig:/opt/msan/lib64/pkgconfig" \
+          CXX="clang++-18" \
+          CXXFLAGS="-O2 -g -fno-omit-frame-pointer -fsanitize=memory -I/opt/msan/include/c++/v1 -stdlib=libc++" \
+          LDFLAGS="-fsanitize=memory -L/opt/msan/lib -stdlib=libc++" \
+          cmake ..
+        make
+
+    - name: Run tests
+      run: |
+        cd cxx-project/build
+        LD_LIBRARY_PATH=/opt/msan/lib ldd ./crypto_tests
+        LD_LIBRARY_PATH=/opt/msan/lib ctest --output-on-failure
+
+    - name: Run demo
+      run: |
+        cd cxx-project/build
+        LD_LIBRARY_PATH=/opt/msan/lib ldd ./crypto_demo
+        LD_LIBRARY_PATH=/opt/msan/lib ./crypto_demo 

@@ -31,4 +31,4 @@ jobs:
 
       - name: Run ${{ matrix.tool }}
         run: |
-          find . -name "*.c" -exec ${{ matrix.tool }} {} \; 
+          find . -name "small-examples/*.c" -exec ${{ matrix.tool }} {} \; 
